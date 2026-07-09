@@ -1,40 +1,53 @@
-import requests
-import json
-import gradio as gr
+import streamlit as st
+from groq import Groq
 
-url="http://localhost:11434/api/generate"
+# Initialize Groq client
+client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
-headers={
+st.set_page_config(page_title="CodeGuru Chatbot", page_icon="🤖")
 
-    'Content-Type':'application/json'
-}
+st.title("🤖 CodeGuru Chatbot")
 
-history=[]
+# Chat history
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
-def generate_response(prompt):
-    history.append(prompt)
-    final_prompt="\n".join(history)
+# Display previous messages
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
 
-    data={
-        "model":"codeguru",
-        "prompt":final_prompt,
-        "stream":False
-    }
+# User input
+prompt = st.chat_input("Ask anything...")
 
-    response=requests.post(url,headers=headers,data=json.dumps(data))
+if prompt:
+    st.session_state.messages.append(
+        {
+            "role": "user",
+            "content": prompt
+        }
+    )
 
-    if response.status_code==200:
-        response=response.text
-        data=json.loads(response)
-        actual_response=data['response']
-        return actual_response
-    else:
-        print("error:",response.text)
+    with st.chat_message("user"):
+        st.markdown(prompt)
 
+    with st.spinner("Thinking..."):
 
-interface=gr.Interface(
-    fn=generate_response,
-    inputs=gr.Textbox(lines=4,placeholder="Enter your Prompt"),
-    outputs="text"
-)
-# interface.launch()
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=st.session_state.messages,
+            temperature=0.7,
+            max_tokens=1024,
+        )
+
+        answer = response.choices[0].message.content
+
+    st.session_state.messages.append(
+        {
+            "role": "assistant",
+            "content": answer
+        }
+    )
+
+    with st.chat_message("assistant"):
+        st.markdown(answer)
